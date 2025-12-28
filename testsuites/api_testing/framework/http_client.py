@@ -271,18 +271,20 @@ class HttpClient:
 
             # 2. Request Headers
             headers = kwargs.get("headers", {})
-            if headers:
+            safe_headers = self._redact_headers(headers)
+            if safe_headers:
                 allure.attach(
-                    json.dumps(headers, ensure_ascii=False, indent=2),
+                    json.dumps(safe_headers, ensure_ascii=False, indent=2),
                     name="📤 Request Headers",
                     attachment_type=AttachmentType.JSON
                 )
 
             # 3. Request Body
             body = kwargs.get("json")
-            if body:
+            safe_body = self._redact_body(body)
+            if safe_body:
                 allure.attach(
-                    json.dumps(body, ensure_ascii=False, indent=2),
+                    json.dumps(safe_body, ensure_ascii=False, indent=2),
                     name="📤 Request Body",
                     attachment_type=AttachmentType.JSON
                 )
@@ -296,7 +298,7 @@ class HttpClient:
                 )
 
             # 5. cURL Command
-            curl_cmd = self._build_curl(method, full_url, headers, body)
+            curl_cmd = self._build_curl(method, full_url, safe_headers, safe_body)
             allure.attach(
                 curl_cmd,
                 name="🔧 cURL Command",
@@ -331,6 +333,37 @@ class HttpClient:
                 name="📥 Response Body",
                 attachment_type=AttachmentType.JSON
             )
+
+    def _redact_headers(self, headers: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Mask sensitive header values before logging.
+        """
+        sensitive_keys = {"authorization", "x-api-key", "x-app-auth", "cookie", "set-cookie"}
+        masked = {}
+        for key, value in headers.items():
+            if key.lower() in sensitive_keys:
+                masked[key] = "***MASKED***"
+            else:
+                masked[key] = value
+        return masked
+
+    def _redact_body(self, payload: Any) -> Any:
+        """
+        Recursively mask sensitive fields in request bodies.
+        """
+        if isinstance(payload, dict):
+            redacted = {}
+            for key, value in payload.items():
+                if any(token in key.lower() for token in [
+                    "password", "secret", "token", "api_key", "authorization", "session"
+                ]):
+                    redacted[key] = "***MASKED***"
+                else:
+                    redacted[key] = self._redact_body(value)
+            return redacted
+        if isinstance(payload, list):
+            return [self._redact_body(item) for item in payload]
+        return payload
 
     def _build_curl(
         self,

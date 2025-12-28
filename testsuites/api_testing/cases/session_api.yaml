@@ -484,3 +484,71 @@ test_cases:
         field: success
         expected: false
 
+  # ============================================================
+  # Showcase Examples (demo-only, may not be executable)
+  # ============================================================
+
+  - name: "create_session_with_view_mode"
+    description: "Demo: create session with audience mode flag (placeholder only)"
+    method: POST
+    url: "/api/v1/session/create"
+    tags: ["demo", "session", "create"]
+    severity: minor
+    
+    json:
+      channel_id: "${test_channel_id}"
+      title: "Demo Session ${timestamp}"
+      view_mode: "public"   # showcase flag; safe placeholder
+      max_viewers: 50
+      scheduled_start: "${future_time}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      - type: equal
+        field: results.view_mode
+        expected: "public"
+
+  - name: "session_metrics_snapshot"
+    description: "Demo: fetch session metrics snapshot (placeholder endpoint)"
+    method: GET
+    url: "/api/v1/session/${test_session_id}/metrics"
+    tags: ["demo", "session", "metrics"]
+    severity: minor
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      - type: is_not_null
+        field: results.viewers
+      - type: is_not_null
+        field: results.bitrate_kbps
+
+  - name: "session_access_policy_sample"
+    description: "Demo: show access policy update without real secrets"
+    method: PATCH
+    url: "/api/v1/session/${test_session_id}/access-policy"
+    tags: ["demo", "session", "security"]
+    severity: minor
+    
+    json:
+      allow_anonymous: false
+      allowed_domains: ["example.com", "demo.example.org"]
+      note: "Public sample only; do not add real domains"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      - type: equal
+        field: results.allow_anonymous
+        expected: false
+

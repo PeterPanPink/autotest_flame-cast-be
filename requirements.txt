@@ -1,0 +1,89 @@
+# ================================================================================
+# Python Dependencies for Automated Testing Framework
+# ================================================================================
+#
+# Install with: pip install -r requirements.txt
+#
+# Categories:
+#   - Testing Framework (pytest ecosystem)
+#   - API Testing (HTTP clients, validation)
+#   - UI Testing (Playwright)
+#   - AI Integration (OpenAI, Anthropic)
+#   - Reporting (Allure)
+#   - Data Management (MongoDB, validation)
+#   - Utilities (logging, config)
+#
+# ================================================================================
+
+# ============================================================
+# Testing Framework
+# ============================================================
+pytest>=8.0.0
+pytest-xdist>=3.5.0          # Parallel test execution
+pytest-timeout>=2.2.0        # Test timeouts
+pytest-rerunfailures>=13.0   # Retry failed tests
+pytest-ordering>=0.6         # Test ordering
+pytest-asyncio>=0.23.0       # Async test support
+
+# ============================================================
+# Reporting
+# ============================================================
+allure-pytest>=2.13.2        # Allure integration for pytest
+
+# ============================================================
+# API Testing
+# ============================================================
+httpx>=0.26.0                # Modern async HTTP client
+requests>=2.31.0             # Traditional HTTP client (backup)
+jsonschema>=4.21.0           # JSON schema validation
+pydantic>=2.5.0              # Data validation using Python type hints
+filelock>=3.13.1             # Cross-process lock (token cache, runners)
+jsonpath-ng>=1.6.1           # Optional: JSONPath assertions in AssertionExecutor
+
+# ============================================================
+# UI Testing
+# ============================================================
+playwright>=1.41.0           # Modern browser automation
+pytest-playwright>=0.4.4     # Pytest plugin for Playwright
+
+# ============================================================
+# AI Integration (for intelligent test generation)
+# ============================================================
+openai>=1.10.0               # OpenAI API client
+anthropic>=0.18.0            # Anthropic Claude API client
+
+# ============================================================
+# Data Management
+# ============================================================
+pymongo>=4.6.0               # MongoDB driver
+sshtunnel>=0.4.0             # SSH tunneling for remote DB
+
+# ============================================================
+# Configuration & Logging
+# ============================================================
+python-dotenv>=1.0.0         # Environment variable management
+pyyaml>=6.0.1                # YAML configuration parsing
+loguru>=0.7.2                # Advanced logging
+
+# ============================================================
+# Utilities
+# ============================================================
+tenacity>=8.2.3              # Retry library
+faker>=22.0.0                # Fake data generation
+python-dateutil>=2.8.2       # Date parsing utilities
+rich>=13.7.0                 # Rich terminal output
+
+# ============================================================
+# Web Framework (for test API server - optional)
+# ============================================================
+fastapi>=0.109.0             # Fast API framework
+uvicorn>=0.27.0              # ASGI server
+
+# ============================================================
+# Code Quality (development)
+# ============================================================
+black>=24.1.0                # Code formatter
+flake8>=7.0.0                # Linter
+mypy>=1.8.0                  # Type checker
+isort>=5.13.0                # Import sorter
+

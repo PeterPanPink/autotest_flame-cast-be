@@ -1,0 +1,242 @@
+# ================================================================================
+# API Automated Tests Workflow
+# ================================================================================
+#
+# This workflow runs API automation tests on pull requests and push events.
+# It includes mutation testing, single API tests, and business flow tests.
+#
+# Trigger Events:
+#   - Pull requests to main/develop branches
+#   - Push to main/develop branches
+#   - Manual dispatch for ad-hoc testing
+#
+# ================================================================================
+
+name: API Automated Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - mutations
+          - single_api
+          - business_cases
+      log_level:
+        description: 'Log verbosity level'
+        required: false
+        default: 'INFO'
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+
+env:
+  PYTHON_VERSION: '3.11'
+  ALLURE_VERSION: '2.24.1'
+
+jobs:
+  # ============================================================
+  # Quick Validation (PR Gate)
+  # ============================================================
+  quick-check:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run P0 Mutation Tests
+        run: |
+          pytest testsuites/api_testing/tests/ -v -m "P0" \
+            --timeout=300 \
+            --tb=short \
+            -n auto
+      
+      - name: Quick Summary
+        if: always()
+        run: |
+          echo "### Quick Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "- P0 mutation tests completed" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Full API Test Suite
+  # ============================================================
+  api-tests:
+    name: API Tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    needs: [quick-check]
+    if: always() && (needs.quick-check.result == 'success' || github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [mutations, single_api, business_cases]
+        include:
+          - suite: mutations
+            path: testsuites/api_testing/tests/
+            marks: "mutations"
+            timeout: 600
+          - suite: single_api
+            path: testsuites/api_testing/tests/
+            marks: "not mutations and not e2e"
+            timeout: 900
+          - suite: business_cases
+            path: testsuites/api_testing/tests/
+            marks: "e2e"
+            timeout: 1200
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+      
+      - name: Run ${{ matrix.suite }} Tests
+        run: |
+          pytest ${{ matrix.path }} \
+            -v \
+            -m "${{ matrix.marks }}" \
+            --timeout=${{ matrix.timeout }} \
+            --alluredir=allure-results-${{ matrix.suite }} \
+            -n auto \
+            --tb=short
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+      
+      - name: Upload Allure Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-results-${{ matrix.suite }}
+          path: allure-results-${{ matrix.suite }}
+          retention-days: 30
+
+  # ============================================================
+  # Generate Combined Report
+  # ============================================================
+  generate-report:
+    name: Generate Test Report
+    runs-on: ubuntu-latest
+    needs: [api-tests]
+    if: always()
+    
+    steps:
+      - name: Download all Allure results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: allure-results
+          merge-multiple: true
+      
+      - name: Get Allure history
+        uses: actions/checkout@v4
+        if: always()
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
+      
+      - name: Generate Allure Report
+        uses: simple-elf/allure-report-action@v1.7
+        if: always()
+        with:
+          allure_results: allure-results
+          allure_history: allure-history
+          keep_reports: 20
+      
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: always() && github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: allure-history
+      
+      - name: Post Summary
+        if: always()
+        run: |
+          echo "### Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Mutations | ${{ needs.api-tests.outputs.mutations_status || '✅' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Single API | ${{ needs.api-tests.outputs.single_api_status || '✅' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Business Cases | ${{ needs.api-tests.outputs.business_cases_status || '✅' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 [View Full Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================
+  # Log Analysis (Post-Test)
+  # ============================================================
+  analyze-logs:
+    name: Analyze Application Logs
+    runs-on: ubuntu-latest
+    needs: [api-tests]
+    if: always() && github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run Log Analysis
+        run: |
+          python -m autotest_tools.log_analyzer.es_log_search \
+            --start "${{ github.event.repository.pushed_at || github.event.head_commit.timestamp }}" \
+            --end "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --output reports/log_analysis.md
+        env:
+          ELASTICSEARCH_URL: ${{ secrets.ELASTICSEARCH_URL }}
+          ELASTICSEARCH_USERNAME: ${{ secrets.ELASTICSEARCH_USERNAME }}
+          ELASTICSEARCH_PASSWORD: ${{ secrets.ELASTICSEARCH_PASSWORD }}
+        continue-on-error: true
+      
+      - name: Upload Log Analysis
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: log-analysis
+          path: reports/log_analysis.md
+          retention-days: 7
+

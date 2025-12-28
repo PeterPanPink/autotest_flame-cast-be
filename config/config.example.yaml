@@ -1,0 +1,202 @@
+# ================================================================================
+# Configuration Template for Automated Testing Framework
+# ================================================================================
+#
+# Copy this file to config.yaml and fill in your values.
+# Environment variables can override these settings (see env mapping below).
+#
+# Environment Variable Mapping:
+#   API_BASE_URL          -> api.base_url
+#   API_KEY               -> api.api_key
+#   ELASTICSEARCH_URL     -> elasticsearch.url
+#   MONGODB_URI           -> mongodb.uri
+#   NOTION_TOKEN          -> notion.token
+#   OPENAI_API_KEY        -> ai.openai.api_key
+#   ANTHROPIC_API_KEY     -> ai.anthropic.api_key
+#
+# ================================================================================
+
+# ============================================================
+# API Testing Configuration
+# ============================================================
+api:
+  # Base URL for the API under test
+  base_url: "https://api.example.com"
+  
+  # API authentication key
+  api_key: "your-api-key-here"
+  
+  # Request timeout in seconds
+  timeout: 30
+  
+  # Retry configuration
+  retry:
+    max_attempts: 3
+    backoff_factor: 2
+    retry_on_status: [429, 500, 502, 503, 504]
+
+# ============================================================
+# UI Testing Configuration
+# ============================================================
+ui:
+  # Base URL for the web application
+  base_url: "https://app.example.com"
+  
+  # Default browser (chromium, firefox, webkit)
+  browser: "chromium"
+  
+  # Run browser in headless mode
+  headless: true
+  
+  # Slow motion delay in milliseconds (for debugging)
+  slow_mo: 0
+  
+  # Default viewport size
+  viewport:
+    width: 1920
+    height: 1080
+  
+  # Test user credentials (for login tests)
+  test_user:
+    username: "test_user"
+    password: "test_password"
+
+# ============================================================
+# Authentication Configuration
+# ============================================================
+auth:
+  # Token endpoint for authentication
+  token_endpoint: "/api/v1/auth/token"
+  
+  # Token refresh settings
+  token_ttl: 3600  # seconds
+  refresh_threshold: 300  # seconds before expiry to refresh
+  
+  # Default user credentials
+  default_user:
+    username: "autotest_user"
+    password: "secure_password"
+
+# ============================================================
+# Database Configuration
+# ============================================================
+mongodb:
+  # MongoDB connection URI
+  uri: "mongodb://localhost:27017"
+  
+  # Default database name
+  database: "test_db"
+  
+  # SSH tunnel settings (for remote databases)
+  ssh:
+    host: ""  # SSH jump host (leave empty if not using tunnel)
+    user: ""
+    key_file: ""
+    port: 22
+    local_bind_port: 27018
+
+# ============================================================
+# Elasticsearch Configuration (for log analysis)
+# ============================================================
+elasticsearch:
+  # Elasticsearch URL
+  url: "http://localhost:9200"
+  
+  # Authentication (optional)
+  username: ""
+  password: ""
+  
+  # Index pattern for log queries
+  index_pattern: "logs-*"
+  
+  # Request timeout
+  timeout: 30
+
+# ============================================================
+# Notion Integration Configuration
+# ============================================================
+notion:
+  # Notion integration token
+  token: "secret_xxxxx"
+  
+  # Default database ID for test specifications
+  specs_database_id: ""
+  
+  # Download images locally
+  download_images: false
+  
+  # Output directory for fetched content
+  output_dir: "docs/notion"
+
+# ============================================================
+# AI Integration Configuration
+# ============================================================
+ai:
+  # OpenAI configuration
+  openai:
+    api_key: "sk-xxxxx"
+    model: "gpt-4-turbo-preview"
+    temperature: 0.2
+    max_tokens: 4096
+  
+  # Anthropic Claude configuration
+  anthropic:
+    api_key: "sk-ant-xxxxx"
+    model: "claude-3-opus-20240229"
+    temperature: 0.2
+    max_tokens: 4096
+  
+  # AI features toggle
+  features:
+    smart_locators: true
+    test_generation: true
+    failure_analysis: true
+
+# ============================================================
+# Logging Configuration
+# ============================================================
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR)
+  level: "INFO"
+  
+  # Log format
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}"
+  
+  # Log file settings (optional)
+  file: ""  # Leave empty to disable file logging
+  rotation: "10 MB"
+  retention: "7 days"
+
+# ============================================================
+# Test Execution Configuration
+# ============================================================
+execution:
+  # Default parallel workers (0 = auto)
+  parallel_workers: 0
+  
+  # Default test timeout in seconds
+  default_timeout: 300
+  
+  # Delay between tests in seconds
+  delay_between_tests: 0.5
+  
+  # Retry failed tests
+  retry_failed: true
+  retry_count: 2
+
+# ============================================================
+# Reporting Configuration
+# ============================================================
+reporting:
+  # Allure results directory
+  allure_results_dir: "reports/allure-results"
+  
+  # Allure report directory
+  allure_report_dir: "reports/allure-report"
+  
+  # Screenshots directory
+  screenshots_dir: "reports/screenshots"
+  
+  # Keep reports for N days
+  retention_days: 30
+

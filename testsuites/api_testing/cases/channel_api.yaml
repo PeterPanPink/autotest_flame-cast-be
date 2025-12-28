@@ -1,0 +1,363 @@
+# ================================================================================
+# Channel API Test Cases (YAML Definition)
+# ================================================================================
+#
+# This file contains data-driven test case definitions for the Channel API.
+# These test cases are loaded by the TestCaseLoader and executed by the framework.
+#
+# Structure:
+#   - name: Unique test case identifier
+#   - description: Human-readable description
+#   - method: HTTP method (GET, POST, PUT, PATCH, DELETE)
+#   - url: API endpoint
+#   - tags: List of tags for filtering (P0, P1, smoke, regression, etc.)
+#   - expected_status: Expected HTTP status code
+#   - assertions: List of response assertions
+#   - db_assertions: Optional database validations
+#
+# ================================================================================
+
+test_cases:
+  # ============================================================
+  # Create Channel Test Cases
+  # ============================================================
+  
+  - name: "create_channel_success"
+    description: "Create a new channel with valid data"
+    method: POST
+    url: "/api/v1/channel/create"
+    tags: ["P0", "smoke", "channel", "create"]
+    severity: critical
+    
+    headers:
+      Content-Type: "application/json"
+    
+    json:
+      title: "Test Channel ${timestamp}"
+      description: "Automated test channel created for validation"
+      location: "US"
+      lang: "en"
+      category_ids: ["cat_001"]
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+        description: "API should return success=true"
+      
+      - type: is_not_null
+        field: results.channel_id
+        description: "Channel ID should be returned"
+      
+      - type: regex_match
+        field: results.channel_id
+        expected: "^ch_[a-zA-Z0-9]+"
+        description: "Channel ID should match expected format"
+      
+      - type: equal
+        field: results.location
+        expected: "US"
+        description: "Location should be normalized to uppercase"
+      
+      - type: is_not_null
+        field: results.created_at
+        description: "Created timestamp should be present"
+    
+    db_assertions:
+      collection: channel
+      match_by: results.channel_id
+      match_field: channel_id
+      verify:
+        - field: title
+          expected: "${body.title}"
+          description: "Title should match request"
+        
+        - field: user_id
+          expected: "${current_user_id}"
+          description: "User ID should be set to current user"
+        
+        - field: created_at
+          type: is_not_null
+          description: "Created timestamp should be persisted"
+
+  - name: "create_channel_minimal_fields"
+    description: "Create channel with only required fields"
+    method: POST
+    url: "/api/v1/channel/create"
+    tags: ["P1", "channel", "create"]
+    severity: normal
+    
+    json:
+      title: "Minimal Channel ${timestamp}"
+      location: "SG"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.channel_id
+      
+      - type: is_not_null
+        field: results.lang
+        description: "Default language should be applied"
+
+  - name: "create_channel_missing_title"
+    description: "Attempt to create channel without required title"
+    method: POST
+    url: "/api/v1/channel/create"
+    tags: ["P1", "channel", "create", "mutations", "negative"]
+    severity: normal
+    
+    json:
+      location: "US"
+      lang: "en"
+    
+    expected_status: 400
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+        description: "API should return failure"
+      
+      - type: contains
+        field: message
+        expected: "title"
+        description: "Error should mention missing title"
+
+  - name: "create_channel_invalid_location"
+    description: "Attempt to create channel with invalid location code"
+    method: POST
+    url: "/api/v1/channel/create"
+    tags: ["P2", "channel", "create", "mutations"]
+    severity: minor
+    
+    json:
+      title: "Invalid Location Channel"
+      location: "INVALID_LOCATION"
+    
+    expected_status: 400
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+
+  # ============================================================
+  # List Channels Test Cases
+  # ============================================================
+  
+  - name: "list_channels_default"
+    description: "List channels with default pagination"
+    method: GET
+    url: "/api/v1/channel/list"
+    tags: ["P0", "smoke", "channel", "list"]
+    severity: critical
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.channels
+        description: "Channels array should be present"
+      
+      - type: length_greater_than_or_equal
+        field: results.channels
+        expected: 0
+        description: "Channels array can be empty but should exist"
+
+  - name: "list_channels_with_pagination"
+    description: "List channels with specific pagination"
+    method: GET
+    url: "/api/v1/channel/list"
+    tags: ["P1", "channel", "list", "pagination"]
+    severity: normal
+    
+    params:
+      page: 1
+      page_size: 5
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: length_less_than_or_equal
+        field: results.channels
+        expected: 5
+        description: "Should not exceed page_size"
+
+  - name: "list_channels_with_filter"
+    description: "List channels filtered by status"
+    method: GET
+    url: "/api/v1/channel/list"
+    tags: ["P1", "channel", "list", "filter"]
+    severity: normal
+    
+    params:
+      status: "active"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+
+  # ============================================================
+  # Get Channel Test Cases
+  # ============================================================
+  
+  - name: "get_channel_by_id"
+    description: "Get channel details by ID"
+    method: GET
+    url: "/api/v1/channel/${test_channel_id}"
+    tags: ["P0", "channel", "get"]
+    severity: critical
+    
+    variables:
+      test_channel_id: "ch_autotest_primary"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.channel_id
+        expected: "${test_channel_id}"
+      
+      - type: is_not_null
+        field: results.title
+      
+      - type: is_not_null
+        field: results.created_at
+
+  - name: "get_channel_not_found"
+    description: "Get non-existent channel returns 404"
+    method: GET
+    url: "/api/v1/channel/ch_nonexistent_12345"
+    tags: ["P2", "channel", "get", "negative"]
+    severity: minor
+    
+    expected_status: 404
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+
+  # ============================================================
+  # Update Channel Test Cases
+  # ============================================================
+  
+  - name: "update_channel_title"
+    description: "Update channel title"
+    method: PATCH
+    url: "/api/v1/channel/${test_channel_id}"
+    tags: ["P0", "channel", "update"]
+    severity: critical
+    
+    variables:
+      test_channel_id: "${created_channel_id}"
+    
+    json:
+      title: "Updated Title ${timestamp}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.title
+        expected: "${body.title}"
+    
+    db_assertions:
+      collection: channel
+      match_by: results.channel_id
+      match_field: channel_id
+      verify:
+        - field: title
+          expected: "${body.title}"
+        
+        - field: updated_at
+          type: is_not_null
+          description: "Updated timestamp should be set"
+
+  - name: "update_channel_partial"
+    description: "Partial update only modifies specified fields"
+    method: PATCH
+    url: "/api/v1/channel/${test_channel_id}"
+    tags: ["P1", "channel", "update"]
+    severity: normal
+    
+    json:
+      description: "Only description updated"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.description
+        expected: "${body.description}"
+
+  # ============================================================
+  # Delete Channel Test Cases
+  # ============================================================
+  
+  - name: "delete_channel_success"
+    description: "Delete a channel successfully"
+    method: DELETE
+    url: "/api/v1/channel/${test_channel_id}"
+    tags: ["P0", "channel", "delete"]
+    severity: critical
+    
+    setup:
+      - action: create_channel
+        store_as: channel_to_delete
+    
+    variables:
+      test_channel_id: "${channel_to_delete.channel_id}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+
+  - name: "delete_channel_not_found"
+    description: "Delete non-existent channel returns 404"
+    method: DELETE
+    url: "/api/v1/channel/ch_nonexistent_delete"
+    tags: ["P2", "channel", "delete", "negative"]
+    severity: minor
+    
+    expected_status: 404
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+

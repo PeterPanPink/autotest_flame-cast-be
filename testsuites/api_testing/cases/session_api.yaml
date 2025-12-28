@@ -1,0 +1,486 @@
+# ================================================================================
+# Session API Test Cases (YAML Definition)
+# ================================================================================
+#
+# This file contains data-driven test case definitions for the Session API.
+# Sessions represent live streaming instances within channels.
+#
+# State Machine:
+#   IDLE -> READY -> PUBLISHING -> LIVE -> ENDING -> STOPPED
+#                 |                      |
+#                 +----> CANCELLED <-----+
+#
+# ================================================================================
+
+test_cases:
+  # ============================================================
+  # Create Session Test Cases
+  # ============================================================
+  
+  - name: "create_session_success"
+    description: "Create a new streaming session with valid data"
+    method: POST
+    url: "/api/v1/session/create"
+    tags: ["P0", "smoke", "session", "create"]
+    severity: critical
+    
+    json:
+      channel_id: "${test_channel_id}"
+      title: "Live Stream ${timestamp}"
+      description: "Automated test streaming session"
+      scheduled_start: "${future_time}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.session_id
+      
+      - type: regex_match
+        field: results.session_id
+        expected: "^se_[a-zA-Z0-9]+"
+      
+      - type: equal
+        field: results.status
+        expected: "IDLE"
+        description: "New session should be in IDLE state"
+      
+      - type: equal
+        field: results.channel_id
+        expected: "${test_channel_id}"
+      
+      - type: is_not_null
+        field: results.created_at
+    
+    db_assertions:
+      collection: session
+      match_by: results.session_id
+      match_field: session_id
+      verify:
+        - field: status
+          expected: "IDLE"
+        
+        - field: channel_id
+          expected: "${test_channel_id}"
+        
+        - field: user_id
+          expected: "${current_user_id}"
+
+  - name: "create_session_inherit_channel_fields"
+    description: "Session inherits fields from parent channel"
+    method: POST
+    url: "/api/v1/session/create"
+    tags: ["P1", "session", "create", "inheritance"]
+    severity: normal
+    
+    json:
+      channel_id: "${test_channel_id}"
+      title: "Inheritance Test Session"
+      # location and lang not specified, should inherit from channel
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.location
+        description: "Location should be inherited from channel"
+      
+      - type: is_not_null
+        field: results.lang
+        description: "Language should be inherited from channel"
+
+  - name: "create_session_override_inherited"
+    description: "Session can override inherited channel fields"
+    method: POST
+    url: "/api/v1/session/create"
+    tags: ["P1", "session", "create", "inheritance"]
+    severity: normal
+    
+    json:
+      channel_id: "${test_channel_id}"
+      title: "Override Test Session"
+      location: "JP"
+      lang: "ja"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: results.location
+        expected: "JP"
+        description: "Overridden location should be used"
+      
+      - type: equal
+        field: results.lang
+        expected: "ja"
+        description: "Overridden language should be used"
+
+  - name: "create_session_invalid_channel"
+    description: "Creating session with non-existent channel fails"
+    method: POST
+    url: "/api/v1/session/create"
+    tags: ["P2", "session", "create", "negative"]
+    severity: minor
+    
+    json:
+      channel_id: "ch_nonexistent_12345"
+      title: "Invalid Channel Session"
+    
+    expected_status: 404
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+
+  # ============================================================
+  # Get Session Test Cases
+  # ============================================================
+  
+  - name: "get_session_by_id"
+    description: "Retrieve session details by session ID"
+    method: GET
+    url: "/api/v1/session/${test_session_id}"
+    tags: ["P0", "session", "get"]
+    severity: critical
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.session_id
+        expected: "${test_session_id}"
+      
+      - type: is_not_null
+        field: results.status
+      
+      - type: is_not_null
+        field: results.channel_id
+      
+      - type: is_not_null
+        field: results.created_at
+
+  - name: "get_session_by_room_id"
+    description: "Retrieve active session by room ID"
+    method: GET
+    url: "/api/v1/session/by-room/${test_room_id}"
+    tags: ["P1", "session", "get", "livekit"]
+    severity: normal
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.room_id
+        expected: "${test_room_id}"
+
+  - name: "get_session_not_found"
+    description: "Get non-existent session returns 404"
+    method: GET
+    url: "/api/v1/session/se_nonexistent_12345"
+    tags: ["P2", "session", "get", "negative"]
+    severity: minor
+    
+    expected_status: 404
+
+  # ============================================================
+  # List Sessions Test Cases
+  # ============================================================
+  
+  - name: "list_sessions_by_channel"
+    description: "List all sessions for a specific channel"
+    method: GET
+    url: "/api/v1/session/list"
+    tags: ["P0", "session", "list"]
+    severity: critical
+    
+    params:
+      channel_id: "${test_channel_id}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.sessions
+
+  - name: "list_sessions_by_status"
+    description: "List sessions filtered by status"
+    method: GET
+    url: "/api/v1/session/list"
+    tags: ["P1", "session", "list", "filter"]
+    severity: normal
+    
+    params:
+      status: "LIVE"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+
+  # ============================================================
+  # Update Session Test Cases
+  # ============================================================
+  
+  - name: "update_session_title"
+    description: "Update session title while in IDLE state"
+    method: PATCH
+    url: "/api/v1/session/${test_session_id}"
+    tags: ["P0", "session", "update"]
+    severity: critical
+    
+    json:
+      title: "Updated Session Title ${timestamp}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: equal
+        field: results.title
+        expected: "${body.title}"
+    
+    db_assertions:
+      collection: session
+      match_by: results.session_id
+      match_field: session_id
+      verify:
+        - field: title
+          expected: "${body.title}"
+        
+        - field: updated_at
+          type: is_not_null
+
+  - name: "update_session_in_terminal_state"
+    description: "Cannot update session in STOPPED state"
+    method: PATCH
+    url: "/api/v1/session/${stopped_session_id}"
+    tags: ["P1", "session", "update", "state_machine", "negative"]
+    severity: normal
+    
+    json:
+      title: "Cannot Update Stopped Session"
+    
+    expected_status: 400
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+      
+      - type: contains
+        field: message
+        expected: "terminal"
+        description: "Error should indicate terminal state"
+
+  # ============================================================
+  # State Transition Test Cases
+  # ============================================================
+  
+  - name: "session_create_room_idle_to_ready"
+    description: "Creating room transitions session from IDLE to READY"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/room/create"
+    tags: ["P0", "session", "state_machine", "livekit"]
+    severity: blocker
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.room_id
+      
+      - type: is_not_null
+        field: results.room_name
+    
+    post_assertions:
+      - name: verify_status_change
+        method: GET
+        url: "/api/v1/session/${test_session_id}"
+        assertions:
+          - type: equal
+            field: results.status
+            expected: "READY"
+
+  - name: "session_start_stream"
+    description: "Start live stream transitions to PUBLISHING then LIVE"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/stream/start"
+    tags: ["P0", "session", "state_machine", "mux"]
+    severity: blocker
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.live_stream_id
+
+  - name: "session_end_stream"
+    description: "End live stream transitions to ENDING then STOPPED"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/stream/end"
+    tags: ["P0", "session", "state_machine"]
+    severity: blocker
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+
+  - name: "session_cancel"
+    description: "Cancel session before going live"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/cancel"
+    tags: ["P1", "session", "state_machine"]
+    severity: critical
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+    
+    post_assertions:
+      - name: verify_cancelled_status
+        method: GET
+        url: "/api/v1/session/${test_session_id}"
+        assertions:
+          - type: equal
+            field: results.status
+            expected: "CANCELLED"
+
+  - name: "invalid_state_transition"
+    description: "Cannot transition from IDLE directly to LIVE"
+    method: POST
+    url: "/api/v1/session/${idle_session_id}/stream/start"
+    tags: ["P2", "session", "state_machine", "negative"]
+    severity: normal
+    
+    expected_status: 400
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+      
+      - type: contains
+        field: message
+        expected: "state"
+
+  # ============================================================
+  # Token Generation Test Cases
+  # ============================================================
+  
+  - name: "get_host_token"
+    description: "Generate host token for session"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/token/host"
+    tags: ["P0", "session", "token", "livekit"]
+    severity: critical
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.token
+      
+      - type: regex_match
+        field: results.token
+        expected: "^eyJ"
+        description: "JWT token should start with eyJ"
+
+  - name: "get_viewer_token"
+    description: "Generate viewer token for public access"
+    method: POST
+    url: "/api/v1/session/${test_session_id}/token/viewer"
+    tags: ["P0", "session", "token", "livekit", "public"]
+    severity: critical
+    
+    json:
+      display_name: "Viewer_${timestamp}"
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.token
+
+  # ============================================================
+  # Playback Test Cases
+  # ============================================================
+  
+  - name: "get_playback_url"
+    description: "Get playback URL for ended session"
+    method: GET
+    url: "/api/v1/session/${stopped_session_id}/playback"
+    tags: ["P1", "session", "playback", "mux", "public"]
+    severity: normal
+    
+    expected_status: 200
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: true
+      
+      - type: is_not_null
+        field: results.playback_url
+
+  - name: "get_playback_url_not_available"
+    description: "Playback not available for active session"
+    method: GET
+    url: "/api/v1/session/${live_session_id}/playback"
+    tags: ["P2", "session", "playback", "negative"]
+    severity: minor
+    
+    expected_status: 400
+    
+    assertions:
+      - type: equal
+        field: success
+        expected: false
+
